@@ -231,7 +231,10 @@ void Node::initialize()
 
 void Node::handleMessage(cMessage *msg)
 {
-    if (msg->getArrivalGateId() == 0) /// msg from coordinator
+    if(msg->isSelfMessage()){
+
+    }
+else if (msg->getArrivalGateId() == 0) /// msg from coordinator
     {
 
             if (!strcmp(this->getName(), "node0"))
@@ -276,20 +279,6 @@ void Node::handleMessage(cMessage *msg)
              string payload = ReceivedMessage->getM_Payload(); // Extract payload
              EV<<payload<<endl;
              string trailer = ReceivedMessage->getTrailer();   // Extract trailer
-
-             // if (ReceivedMessage->isSelfMessage())
-             // {
-             //     EV << "At time[" << simTime() << "], Node[" << ReceivedMessage->getHeader() << "] Sending [";
-             //     EV << ReceivedMessage->getFrame_Type() << "] with number [" << ReceivedMessage->getACK();
-             //     string ack_loss = "YES";
-             //     if (uniform(0, 1) > par("LP").doubleValue())
-             //     {
-             //         ack_loss = "NO";
-             //         sendDelayed(ReceivedMessage, par("TD").doubleValue(), "out");
-             //     }
-             //     EV << "] , loss [" << ack_loss << "]";
-             //     return;
-             // }
              string str = "";
              std::bitset<8> parity_check = CalculateParityRec(payload, str) ;
              NodeMessage_Base *ack_nack = new NodeMessage_Base("msg");
