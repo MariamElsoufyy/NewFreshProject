@@ -248,7 +248,6 @@ void Node::handleMessage(cMessage *msg)
             {
                 NodeMessage_Base *frame = new NodeMessage_Base("");
                 MessageData currentMsg = msgs[counter];
-                msgs.erase(msgs.begin());
                 int seq_num = counter % (MAX_SEQ + 1); // Sequence number wraps around
                 frame->setHeader(seq_num);             // Add sequence number
                 frame->setFrame_Type(2);

@@ -1,8 +1,8 @@
 version 3
-run General-0-20241225-00:31:43-16904
+run General-0-20241225-00:38:18-14452
 attr configname General
-attr datetime 20241225-00:31:43
-attr datetimef 20241225-003143
+attr datetime 20241225-00:38:18
+attr datetimef 20241225-003818
 attr experiment General
 attr inifile network.ini
 attr iterationvars ""
@@ -10,7 +10,7 @@ attr iterationvarsd ""
 attr iterationvarsf ""
 attr measurement ""
 attr network Network
-attr processid 16904
+attr processid 14452
 attr repetition 0
 attr replication #0
 attr resultdir results
