@@ -61,7 +61,7 @@ char binaryToChar(const std::string &binary) {
     // Convert binary string to decimal and then to a character
     return static_cast<char>(std::bitset<8>(binary).to_ulong());
 }
-bitset<8> Node::CalculateParityRec(string Data, string &str, bitset<8> trailer)
+bitset<8> Node::CalculateParityRec(string Data, string &str)
 {
     std::bitset<8> parity = 0000000;
     for (int i = 0; i < Data.size(); i=i+8)
@@ -70,7 +70,7 @@ bitset<8> Node::CalculateParityRec(string Data, string &str, bitset<8> trailer)
         str = str + binaryToChar(Data.substr(i,8));
         parity = parity ^ bits;
     }
-    return parity;
+    return parity ;
 }
 
 bitset<8> Node::CalculateParity(string Data, string &bitstring)
@@ -275,6 +275,7 @@ void Node::handleMessage(cMessage *msg)
          {
              int seqnum = ReceivedMessage->getHeader();
              string payload = ReceivedMessage->getM_Payload(); // Extract payload
+             EV<<payload<<endl;
              string trailer = ReceivedMessage->getTrailer();   // Extract trailer
 
              // if (ReceivedMessage->isSelfMessage())
@@ -291,9 +292,10 @@ void Node::handleMessage(cMessage *msg)
              //     return;
              // }
              string str = "";
-             std::bitset<8> parity_check = CalculateParityRec(payload, str,bitset<8>(trailer));
+             std::bitset<8> parity_check = CalculateParityRec(payload, str) ;
              NodeMessage_Base *ack_nack = new NodeMessage_Base("msg");
-             if (!strcmp(parity_check.to_string().c_str(),trailer.c_str()))
+
+             if (strcmp(parity_check.to_string().c_str(),trailer.c_str()))
              {
                  // There is an error detected so send NACK
                  ack_nack->setHeader(seqnum); // NACK for the received sequence number
@@ -301,7 +303,7 @@ void Node::handleMessage(cMessage *msg)
                  ack_nack->setFrame_Type(0);  // Type for NACK can be set to 0
                  ack_nack->setACK(ReceivedMessage->getHeader());
              }
-             else if (parity_check == 00000000 ) // correct frame sent in order
+             else // correct frame sent in order
              {
                  frame_expected = (frame_expected + 1) % (MAX_SEQ + 1); // Update frame_expected to the next sequence number and wrap around
                  ack_nack->setHeader(seqnum);                           // ACK for the current sequence number
