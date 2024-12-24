@@ -68,6 +68,7 @@ bitset<8> Node::CalculateParityRec(string Data, string &str, bitset<8> trailer)
     {
         std::bitset<8> bits(Data.substr(i,8));
         str = str + binaryToChar(Data.substr(i,8));
+        parity = parity ^ bits;
     }
     return parity;
 }
@@ -79,6 +80,7 @@ bitset<8> Node::CalculateParity(string Data, string &bitstring)
     {
         std::bitset<8> bits(Data[i]);
         parity = parity ^ bits;
+        bitstring = bitstring + bits.to_string();
     }
     return parity ;
 }
@@ -273,7 +275,6 @@ void Node::handleMessage(cMessage *msg)
          {
              int seqnum = ReceivedMessage->getHeader();
              string payload = ReceivedMessage->getM_Payload(); // Extract payload
-             EV<<payload<<endl;
              string trailer = ReceivedMessage->getTrailer();   // Extract trailer
 
              // if (ReceivedMessage->isSelfMessage())
@@ -291,7 +292,6 @@ void Node::handleMessage(cMessage *msg)
              // }
              string str = "";
              std::bitset<8> parity_check = CalculateParityRec(payload, str,bitset<8>(trailer));
-             EV<<parity_check.to_string()<<" "<<trailer<<endl;
              NodeMessage_Base *ack_nack = new NodeMessage_Base("msg");
              if (!strcmp(parity_check.to_string().c_str(),trailer.c_str()))
              {
@@ -346,7 +346,7 @@ void Node::handleMessage(cMessage *msg)
                  }
 
                  EV << "Deframed payload: " << deframed_payload << endl;
-                 EV << s;
+                 EV << "Text "<<s;
              }
 
              sendDelayed(ack_nack, par("TD").doubleValue()+ par("PT").doubleValue(),"node$o");
