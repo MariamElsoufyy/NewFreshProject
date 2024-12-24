@@ -60,7 +60,7 @@ private:
    void ModifyBit(string &bitstring);
    void CreateError(string &bitstring,bitset<4>currentmsg_bits,NodeMessage_Base *nodemsg ,NodeMessage_Base *nodemsg2,int &DelayValue,int &dupDelay );
    bitset<8> CalculateParity(string Data, string &bitstring);
-   bitset<8> CalculateParityRec(string Data, string &str, bitset<8> trailer);
+   bitset<8> CalculateParityRec(string Data, string &str);
    bool between(int a, int b, int c);
     void readInputFile(vector<MessageData>&msgs,string filename);
 };

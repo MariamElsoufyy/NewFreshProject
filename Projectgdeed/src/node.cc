@@ -61,7 +61,7 @@ char binaryToChar(const std::string &binary)
     // Convert binary string to decimal and then to a character
     return static_cast<char>(std::bitset<8>(binary).to_ulong());
 }
-bitset<8> Node::CalculateParityRec(string Data, string &str, bitset<8> trailer)
+bitset<8> Node::CalculateParityRec(string Data, string &str)
 {
     std::bitset<8> parity = 0000000;
     for (int i = 0; i < Data.size(); i = i + 8)
@@ -70,7 +70,7 @@ bitset<8> Node::CalculateParityRec(string Data, string &str, bitset<8> trailer)
         str = str + binaryToChar(Data.substr(i, 8));
         parity = parity ^ bits;
     }
-    return parity;
+    return parity ;
 }
 bitset<8> Node::CalculateParity(string Data, string &bitstring)
 {
@@ -225,29 +225,31 @@ void Node::initialize()
 }
 void Node::handleMessage(cMessage *msg)
 {
-    if (msg->getArrivalGateId() == 0) /// msg from coordinator
+    if(msg->isSelfMessage()){
+
+    }
+else if (msg->getArrivalGateId() == 0) /// msg from coordinator
     {
 
-        if (!strcmp(this->getName(), "node0"))
-        {
-            filename = "input0.txt";
-        }
-        else if (!strcmp(this->getName(), "node1"))
-        {
-            filename = "input1.txt";
-        }
-        readInputFile(msgs, filename);
-        int counter = 0;
-        while (counter < window_size && !msgs.empty())
-        {
-            NodeMessage_Base *frame = new NodeMessage_Base("");
-            MessageData currentMsg = msgs[counter];
-            msgs.erase(msgs.begin());
-            int seq_num = counter % (MAX_SEQ + 1); // Sequence number wraps around
-            frame->setHeader(seq_num);             // Add sequence number
-            frame->setFrame_Type(2);
-            string currentmsg_data = currentMsg.data;
-            bitset<4> errorBits = currentMsg.prefix;
+            if (!strcmp(this->getName(), "node0"))
+            {
+                filename = "input0.txt";
+            }
+            else if(!strcmp(this->getName(), "node1"))
+            {
+                filename = "input1.txt";
+            }
+            readInputFile(msgs,filename);
+            int counter = 0;
+            while (counter < window_size && !msgs.empty())
+            {
+                NodeMessage_Base *frame = new NodeMessage_Base("");
+                MessageData currentMsg = msgs[counter];
+                int seq_num = counter % (MAX_SEQ + 1); // Sequence number wraps around
+                frame->setHeader(seq_num);             // Add sequence number
+                frame->setFrame_Type(2);
+                string currentmsg_data = currentMsg.data;
+                bitset<4> errorBits = currentMsg.prefix;
 
             /////// Framing //////
             string currentmsg_framed = FrameAndFlag(currentmsg_data);
@@ -262,52 +264,40 @@ void Node::handleMessage(cMessage *msg)
         }
     }
     else
-    {
-        NodeMessage_Base *ReceivedMessage = check_and_cast<NodeMessage_Base *>(msg);
-        if (ReceivedMessage->getFrame_Type() == 2) // recieving data [reciever]
-        {
-            int seqnum = ReceivedMessage->getHeader();
-            string payload = ReceivedMessage->getM_Payload(); // Extract payload
-            string trailer = ReceivedMessage->getTrailer();   // Extract trailer
+     {
+         NodeMessage_Base *ReceivedMessage = check_and_cast<NodeMessage_Base *>(msg);
+         if (ReceivedMessage->getFrame_Type() == 2) // recieving data [reciever]
+         {
+             int seqnum = ReceivedMessage->getHeader();
+             string payload = ReceivedMessage->getM_Payload(); // Extract payload
+             EV<<payload<<endl;
+             string trailer = ReceivedMessage->getTrailer();   // Extract trailer
+             string str = "";
+             std::bitset<8> parity_check = CalculateParityRec(payload, str) ;
+             NodeMessage_Base *ack_nack = new NodeMessage_Base("msg");
 
-            // if (ReceivedMessage->isSelfMessage())
-            // {
-            //     EV << "At time[" << simTime() << "], Node[" << ReceivedMessage->getHeader() << "] Sending [";
-            //     EV << ReceivedMessage->getFrame_Type() << "] with number [" << ReceivedMessage->getACK();
-            //     string ack_loss = "YES";
-            //     if (uniform(0, 1) > par("LP").doubleValue())
-            //     {
-            //         ack_loss = "NO";
-            //         sendDelayed(ReceivedMessage, par("TD").doubleValue(), "out");
-            //     }
-            //     EV << "] , loss [" << ack_loss << "]";
-            //     return;
-            // }
-            string str = "";
-            std::bitset<8> parity_check = CalculateParityRec(payload, str, bitset<8>(trailer));
-            NodeMessage_Base *ack_nack = new NodeMessage_Base("msg");
-            if (!strcmp(parity_check.to_string().c_str(), trailer.c_str()))
-            {
-                // There is an error detected so send NACK
-                ack_nack->setHeader(seqnum); // NACK for the received sequence number
-                ack_nack->setM_Payload("");  // No payload needed for NACK
-                ack_nack->setFrame_Type(0);  // Type for NACK can be set to 0
-                ack_nack->setACK(ReceivedMessage->getHeader());
-            }
-            else if (parity_check == 00000000) // correct frame sent in order
-            {
-                frame_expected = (frame_expected + 1) % (MAX_SEQ + 1); // Update frame_expected to the next sequence number and wrap around
-                ack_nack->setHeader(seqnum);                           // ACK for the current sequence number
-                ack_nack->setM_Payload("");
-                ack_nack->setFrame_Type(1); // Type for ACK can be set to 1
-                int expected = 0;
-                if (expected == ReceivedMessage->getHeader())
-                {
-                    expected++;
-                    if (expected == MAX_SEQ)
-                        expected = 0;
-                }
-                ack_nack->setACK((expected + MAX_SEQ - 1) % (MAX_SEQ));
+             if (strcmp(parity_check.to_string().c_str(),trailer.c_str()))
+             {
+                 // There is an error detected so send NACK
+                 ack_nack->setHeader(seqnum); // NACK for the received sequence number
+                 ack_nack->setM_Payload("");  // No payload needed for NACK
+                 ack_nack->setFrame_Type(0);  // Type for NACK can be set to 0
+                 ack_nack->setACK(ReceivedMessage->getHeader());
+             }
+             else // correct frame sent in order
+             {
+                 frame_expected = (frame_expected + 1) % (MAX_SEQ + 1); // Update frame_expected to the next sequence number and wrap around
+                 ack_nack->setHeader(seqnum);                           // ACK for the current sequence number
+                 ack_nack->setM_Payload("");
+                 ack_nack->setFrame_Type(1);  // Type for ACK can be set to 1
+                 int expected = 0;
+                 if (expected == ReceivedMessage->getHeader())
+                 {
+                     expected ++;
+                     if(expected == MAX_SEQ)
+                         expected = 0;
+                 }
+                 ack_nack->setACK((expected + MAX_SEQ -1)%(MAX_SEQ));
 
                 /// Process the payload
                 string deframed_payload = "";
