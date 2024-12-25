@@ -108,8 +108,7 @@ bool Node::between(int a, int b, int c)
     else
         return false;
 }
-char binaryToChar(const std::string &binary)
-{
+
 char binaryToChar(const std::string &binary)
 {
     // Convert binary string to decimal and then to a character
