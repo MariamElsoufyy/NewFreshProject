@@ -6,7 +6,7 @@
 using namespace std;
 Define_Module(Node);
 
-#define MAX_SEQ (par("WS").intValue() + 1) // WS+1
+int MAX_SEQ ;
 typedef enum
 {
     frame_arrival,
@@ -70,7 +70,7 @@ bitset<8> Node::CalculateParityRec(string Data, string &str)
         str = str + binaryToChar(Data.substr(i, 8));
         parity = parity ^ bits;
     }
-    return parity ;
+    return parity;
 }
 bitset<8> Node::CalculateParity(string Data, string &bitstring)
 {
@@ -220,84 +220,99 @@ void Node::initialize()
 {
     frame_expected = 0;
     window_size = par("WS").intValue();           // Set window size from .ini file
+    MAX_SEQ = window_size;                    // Set MAX_SEQ
     send_window.resize(window_size, nullptr);     // Allocate buffer
     timeout_event = new cMessage("TimeoutEvent"); // Create timeout event
 }
 void Node::handleMessage(cMessage *msg)
 {
-    if(msg->isSelfMessage()){
+    if (msg->isSelfMessage())
+    {
+        if (!strcmp(msg->getName(), "Self Message To Sender")) // Send the next frame
+        {
+            NodeMessage_Base *frame = check_and_cast<NodeMessage_Base *>(msg);
+            int seq_num = frame->getHeader();
+            send_window[seq_num] = frame;
+            sendDelayed(frame, simTime(), "node$o");
 
+            return;
+        }
+        else if (!strcmp(msg->getName(), "timeout")) // Timeout event
+        {
+            EV << "Timeout occurred for frame: " << frame_expected << "\n";
+            sendDelayed(send_window[frame_expected], par("TD").doubleValue() + par("PT").doubleValue(), "node$o");
+            return;
+        }
     }
-else if (msg->getArrivalGateId() == 0) /// msg from coordinator
+    if (msg->getArrivalGateId() == 0) /// msg from coordinator
     {
 
-            if (!strcmp(this->getName(), "node0"))
-            {
-                filename = "input0.txt";
-            }
-            else if(!strcmp(this->getName(), "node1"))
-            {
-                filename = "input1.txt";
-            }
-            readInputFile(msgs,filename);
-            int counter = 0;
-            while (counter < window_size && !msgs.empty())
-            {
-                NodeMessage_Base *frame = new NodeMessage_Base("");
-                MessageData currentMsg = msgs[counter];
-                int seq_num = counter % (MAX_SEQ + 1); // Sequence number wraps around
-                frame->setHeader(seq_num);             // Add sequence number
-                frame->setFrame_Type(2);
-                string currentmsg_data = currentMsg.data;
-                bitset<4> errorBits = currentMsg.prefix;
-
-            /////// Framing //////
+        if (!strcmp(this->getName(), "node0"))
+        {
+            filename = "input0.txt";
+        }
+        else if (!strcmp(this->getName(), "node1"))
+        {
+            filename = "input1.txt";
+        }
+        readInputFile(msgs, filename);
+        int counter = 0;
+        while (counter < window_size && !msgs.empty())
+        {
+            NodeMessage_Base *frame = new NodeMessage_Base("msg");
+            MessageData currentMsg = msgs[counter];
+            int seq_num = (frame_expected + window_size - 1) % MAX_SEQ;
+            frame->setHeader(seq_num);
+            frame->setFrame_Type(2);
+            string currentmsg_data = currentMsg.data;
+            bitset<4> errorBits = currentMsg.prefix;
             string currentmsg_framed = FrameAndFlag(currentmsg_data);
-            /////// Parity //////
             string bitstring = "";
             bitset<8> parity = CalculateParity(currentmsg_framed, bitstring);
             frame->setTrailer(parity.to_string().c_str());
-            //////setting payload////////
             frame->setM_Payload(bitstring.c_str());
+            send_window[seq_num] = frame;
+            EV<<"Sending frame with seqnum"<<frame->getHeader()<< "at time"<< simTime()<<endl;
+            sendDelayed(frame, par("PT").doubleValue(), "node$o");
             counter++;
-            sendDelayed(frame, par("PT").doubleValue() + par("TD").doubleValue(), "node$o"); // Send frame
-        }
+    }
     }
     else
-     {
-         NodeMessage_Base *ReceivedMessage = check_and_cast<NodeMessage_Base *>(msg);
-         if (ReceivedMessage->getFrame_Type() == 2) // recieving data [reciever]
-         {
-             int seqnum = ReceivedMessage->getHeader();
-             string payload = ReceivedMessage->getM_Payload(); // Extract payload
-             EV<<payload<<endl;
-             string trailer = ReceivedMessage->getTrailer();   // Extract trailer
-             string str = "";
-             std::bitset<8> parity_check = CalculateParityRec(payload, str) ;
-             NodeMessage_Base *ack_nack = new NodeMessage_Base("msg");
+    {
+        NodeMessage_Base *ReceivedMessage = check_and_cast<NodeMessage_Base *>(msg);
+        if (ReceivedMessage->getFrame_Type() == 2) // recieving data [reciever]
+        {
+            int seqnum = ReceivedMessage->getHeader();
+            string payload = ReceivedMessage->getM_Payload(); // Extract payload
+            EV << "seq num recived" << seqnum << endl;
+            string trailer = ReceivedMessage->getTrailer(); // Extract trailer
+            string str = "";
+            std::bitset<8> parity_check = CalculateParityRec(payload, str);
+            NodeMessage_Base *ack_nack = new NodeMessage_Base("msg");
 
-             if (strcmp(parity_check.to_string().c_str(),trailer.c_str()))
-             {
-                 // There is an error detected so send NACK
-                 ack_nack->setHeader(seqnum); // NACK for the received sequence number
-                 ack_nack->setM_Payload("");  // No payload needed for NACK
-                 ack_nack->setFrame_Type(0);  // Type for NACK can be set to 0
-                 ack_nack->setACK(ReceivedMessage->getHeader());
-             }
-             else // correct frame sent in order
-             {
-                 frame_expected = (frame_expected + 1) % (MAX_SEQ + 1); // Update frame_expected to the next sequence number and wrap around
-                 ack_nack->setHeader(seqnum);                           // ACK for the current sequence number
-                 ack_nack->setM_Payload("");
-                 ack_nack->setFrame_Type(1);  // Type for ACK can be set to 1
-                 int expected = 0;
-                 if (expected == ReceivedMessage->getHeader())
-                 {
-                     expected ++;
-                     if(expected == MAX_SEQ)
-                         expected = 0;
-                 }
-                 ack_nack->setACK((expected + MAX_SEQ -1)%(MAX_SEQ));
+            if (strcmp(parity_check.to_string().c_str(), trailer.c_str()))
+            {
+                EV<<"Error detected"<<endl;
+                // There is an error detected so send NACK
+                ack_nack->setHeader(seqnum); // NACK for the received sequence number
+                ack_nack->setM_Payload("");  // No payload needed for NACK
+                ack_nack->setFrame_Type(0);  // Type for NACK can be set to 0
+                ack_nack->setACK(ReceivedMessage->getHeader());
+            }
+            else // correct frame sent in order
+            {
+                frame_expected = (frame_expected + 1) % (MAX_SEQ + 1); // Update frame_expected to the next sequence number and wrap around
+                ack_nack->setHeader(seqnum);                           // ACK for the current sequence number
+                ack_nack->setM_Payload("");
+                ack_nack->setFrame_Type(1); // Type for ACK can be set to 1
+                // Assume ReceivedMessage is the incoming frame
+                int receivedSeqNum = ReceivedMessage->getHeader(); // Get the sequence number of the received frame
+
+                // Create an acknowledgment for the received sequence number
+                ack_nack->setACK(receivedSeqNum);
+
+                // Optionally, you can log or print the acknowledgment being sent
+                EV << "Acknowledging frame with sequence number: " << receivedSeqNum << endl;
 
                 /// Process the payload
                 string deframed_payload = "";
@@ -327,12 +342,13 @@ else if (msg->getArrivalGateId() == 0) /// msg from coordinator
                         s = s + letter;
                     }
                 }
+
                 EV << "Deframed payload: " << deframed_payload << endl;
                 EV << "Text " << s;
             }
             sendDelayed(ack_nack, par("TD").doubleValue() + par("PT").doubleValue(), "node$o");
         }
-        else if (ReceivedMessage->getFrame_Type() == 1) // recieving Ack [sender]
+        else if (ReceivedMessage->getFrame_Type() == 1 ) // recieving Ack [sender]
         {
             int ack_num = ReceivedMessage->getACK(); // Get ACK number
             EV << "Received ACK for frame " << ack_num << endl;
@@ -343,7 +359,7 @@ else if (msg->getArrivalGateId() == 0) /// msg from coordinator
                 EV << "ACK is within the window." << endl;
 
                 // Move the window forward
-                while (frame_expected != (ack_num + 1) % MAX_SEQ)
+                if (frame_expected == ack_num)
                 {
                     // Free the frame buffer for the acknowledged frame
                     delete send_window[frame_expected % window_size];
@@ -382,7 +398,8 @@ else if (msg->getArrivalGateId() == 0) /// msg from coordinator
                     send_window[frame_expected % window_size] = frame;
 
                     // Send the frame
-                    sendDelayed(frame->dup(), par("PT").doubleValue() + par("TD").doubleValue(), "node$o");
+                    EV << "Sending frame " << frame->getM_Payload() << endl;
+                    sendDelayed(frame, par("PT").doubleValue() + par("TD").doubleValue(), "node$o");
                 }
             }
             else
