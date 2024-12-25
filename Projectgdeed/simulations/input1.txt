@@ -1,7 +1,7 @@
 0000 mariam 
-0000 orashy
-0000 saher 
-0000 yarab
-0000 omsagda
+0001 orashy
+0011 saher 
+0111 yarab
+1111 omsagda
 0000 wewa
 0000 werraa

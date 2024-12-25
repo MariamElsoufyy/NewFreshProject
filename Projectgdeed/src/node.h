@@ -50,6 +50,11 @@ private:
     int next_frame_to_send = 0;
     int nbuffered = 0;
     int window_size = 0;
+    double DelayValue = 0;
+    double dupDelay = 0;
+    int lossCounter = -1;
+    double totalDelay = 0;
+
     std::vector<NodeMessage_Base*> send_window; // Buffer for unacknowledged frames
     cMessage * timeout_event; // Timeout event
 
@@ -57,12 +62,16 @@ private:
     virtual void initialize() override;
     virtual void handleMessage(cMessage *msg) override;
     string FrameAndFlag(string msg);
-   void ModifyBit(string &bitstring);
-   void CreateError(string &bitstring,bitset<4>currentmsg_bits,NodeMessage_Base *nodemsg ,NodeMessage_Base *nodemsg2,int &DelayValue,int &dupDelay );
+   int ModifyBit(string &bitstring);
+   void CreateError(string &bitstring, bitset<4> currentmsg_bits,int & modifiedbit, bool & losssignal );
    bitset<8> CalculateParity(string Data, string &bitstring);
    bitset<8> CalculateParityRec(string Data, string &str);
    bool between(int a, int b, int c);
     void readInputFile(vector<MessageData>&msgs,string filename);
+   void writeToOutputFile( int node_id, bitset<4> error_code);
+   void logFrameEvent(double time, int node_id, int actiontype,
+                      int seq_num,  string payload, const string trailer,
+                      int modified_bit,bool lostbool, int duplicate_version, double delay_interval);
 };
 
 #endif

@@ -6,13 +6,63 @@
 using namespace std;
 Define_Module(Node);
 
-int MAX_SEQ ;
+
+#define MAX_SEQ (par("WS").intValue() + 1) // WS+1
 typedef enum
 {
     frame_arrival,
     timeout,
 } event_type;
 
+
+void Node:: logFrameEvent(double time, int node_id, int actiontype,
+                   int seq_num,  string payload, const string trailer,
+                   int modified_bit,bool lostbool, int duplicate_version, double delay_interval) {
+    std::ofstream output_file("output.txt", std::ios::app);
+    if (!output_file) {
+        std::cerr << "Error: Could not open output.txt for writing." << std::endl;
+        return;
+    }
+    string action,lost;
+    if(actiontype ==1){
+        action ="sent";
+    }
+    else{
+        action = "received";
+    }
+
+   if(lostbool){
+
+       lost = "yes";
+   }
+   else
+   {
+       lost = "no";
+   }
+
+    // Print the formatted message
+   output_file << "At time [" << time << "], Node[" << node_id << "] [" << action
+              << "] frame with seq_num=[" << seq_num << "] and payload=[" << payload 
+              << "] and trailer=[" << trailer << "], Modified [" << modified_bit 
+              << "], Lost [" << lost << "], Duplicate [" << duplicate_version 
+              << "], Delay [" << delay_interval << "]" << endl;
+   output_file.close();
+
+}
+
+void Node:: writeToOutputFile(int node_id, bitset<4> error_code) {
+
+
+    std::ofstream output_file("output.txt", std::ios::app);
+    if (!output_file) {
+        std::cerr << "Error: Could not open output.txt for writing." << std::endl;
+        return;
+    }
+
+    output_file << "At time [" << simTime() << "], Node[" << node_id
+                << "], Introducing channel error with code =[" << error_code << "].\n";
+
+}
 string Node::FrameAndFlag(string msg)
 {
 
@@ -35,7 +85,8 @@ string Node::FrameAndFlag(string msg)
 
     return currentmsg_string;
 }
-void Node::ModifyBit(string &bitstring)
+
+int Node::ModifyBit(string &bitstring)
 {
     int rand = uniform(0, bitstring.size() - 1);
 
@@ -47,6 +98,7 @@ void Node::ModifyBit(string &bitstring)
     {
         bitstring[rand] = '1';
     }
+    return rand ;
 }
 bool Node::between(int a, int b, int c)
 {
@@ -56,6 +108,7 @@ bool Node::between(int a, int b, int c)
     else
         return false;
 }
+
 char binaryToChar(const std::string &binary)
 {
     // Convert binary string to decimal and then to a character
@@ -83,111 +136,114 @@ bitset<8> Node::CalculateParity(string Data, string &bitstring)
     }
     return parity;
 }
-void Node::CreateError(string &bitstring, bitset<4> currentmsg_bits, NodeMessage_Base *nodemsg, NodeMessage_Base *nodemsg2, int &DelayValue, int &dupDelay)
+void Node::CreateError(string &bitstring, bitset<4> currentmsg_bits, int & modifiedbit, bool & losssignal )
 {
+    DelayValue =par("PT").doubleValue() + par("TD").doubleValue();
+    EV<<"gowa"<<DelayValue<<endl;
     if (!strcmp(currentmsg_bits.to_string().c_str(), "0000")) // NO ERROR
     {
-
-        nodemsg->setM_Payload(bitstring.c_str());
-        DelayValue = par("PT").doubleValue() + par("TD").doubleValue();
+        return;
     }
     else if (!strcmp(currentmsg_bits.to_string().c_str(), "0001")) // Delay Error
     {
 
-        nodemsg->setM_Payload(bitstring.c_str());
-        DelayValue = par("PT").doubleValue() + par("TD").doubleValue() + par("ED").doubleValue();
+        DelayValue = DelayValue + par("ED").doubleValue();
+        EV<<"gowa awy "<<DelayValue<<endl;
+        return;
     }
     else if (!strcmp(currentmsg_bits.to_string().c_str(), "0011")) // Delay and duplication Error
     {
 
-        nodemsg->setM_Payload(bitstring.c_str());
-        nodemsg2->setM_Payload(nodemsg->getM_Payload());
-        nodemsg2->setTrailer(nodemsg->getTrailer());
-        DelayValue = par("PT").doubleValue() + par("TD").doubleValue() + par("ED").doubleValue();
-        dupDelay = par("PT").doubleValue() + par("TD").doubleValue() + par("ED").doubleValue() + par("DD").doubleValue();
+        DelayValue = DelayValue + par("ED").doubleValue();
+        dupDelay =  par("DD").doubleValue();
+        return;
     }
     else if (!strcmp(currentmsg_bits.to_string().c_str(), "0010")) // duplication Error
     {
+        losssignal = 1;
+        return;
 
-        nodemsg->setM_Payload(bitstring.c_str());
-
-        nodemsg2->setM_Payload(nodemsg->getM_Payload());
-        nodemsg2->setTrailer(nodemsg->getTrailer());
-
-        DelayValue = par("PT").doubleValue() + par("TD").doubleValue();
-        dupDelay = par("PT").doubleValue() + par("TD").doubleValue() + par("DD").doubleValue();
     }
     else if ((!strcmp(currentmsg_bits.to_string().c_str(), "0100")) || (!strcmp(currentmsg_bits.to_string().c_str(), "0101"))) // Loss Error & loss and delay
     {
-
-        nodemsg->setM_Payload(bitstring.c_str());
-        scheduleAt(simTime() + par("PT").doubleValue(), new cMessage("lost"));
+        DelayValue = par("PT").doubleValue();
+        //////LOSSSSSSSSSSSSSSSSSSS
+        losssignal = 1;
+        return;
     }
-    else if ((!strcmp(currentmsg_bits.to_string().c_str(), "0110")) || (!strcmp(currentmsg_bits.to_string().c_str(), "0111"))) // loss + dup + delay || loss + dup
+    else if (!strcmp(currentmsg_bits.to_string().c_str(), "0110")) // loss + dup
     {
-
-        nodemsg->setM_Payload(bitstring.c_str());
-
-        nodemsg2->setM_Payload(nodemsg->getM_Payload());
-        nodemsg2->setTrailer(nodemsg->getTrailer());
-        scheduleAt(simTime() + par("PT").doubleValue(), new cMessage("lost"));
-        // scheduleAt(simTime() + par("PT").doubleValue(), new cMessage("lost"));
+        //////LOSSSSSSSSSSSSSSSSSSS
+        dupDelay =  par("DD").doubleValue();
+        DelayValue = par("PT").doubleValue();
+        losssignal = 1;
+        return;
     }
+    else if (!strcmp(currentmsg_bits.to_string().c_str(), "0111")) // loss + dup + delay ||
+        {
+        DelayValue = par("PT").doubleValue();
+        dupDelay =  par("DD").doubleValue();
+
+        losssignal = 1;
+        return;
+        }
     else if (currentmsg_bits[3] == 1) // Modification Error
     {
 
-        ModifyBit(bitstring);
+       modifiedbit =  ModifyBit(bitstring);
 
         if (!strcmp(currentmsg_bits.to_string().c_str(), "1000")) // Modification only
         {
-
-            nodemsg->setM_Payload(bitstring.c_str());
-            DelayValue = par("PT").doubleValue() + par("TD").doubleValue();
+            return;
         }
 
         else if (!strcmp(currentmsg_bits.to_string().c_str(), "1001")) // Delay + modification  Error
         {
 
-            nodemsg->setM_Payload(bitstring.c_str());
-            DelayValue = par("PT").doubleValue() + par("TD").doubleValue() + par("ED").doubleValue();
+            dupDelay =  par("DD").doubleValue();
+            return;
         }
         else if (!strcmp(currentmsg_bits.to_string().c_str(), "1010")) // Modification and Duplication
         {
 
-            nodemsg->setM_Payload(bitstring.c_str());
-
-            nodemsg2->setM_Payload(nodemsg->getM_Payload());
-            nodemsg2->setTrailer(nodemsg->getTrailer());
-            DelayValue = par("PT").doubleValue() + par("TD").doubleValue();
-            dupDelay = par("PT").doubleValue() + par("TD").doubleValue() + par("DD").doubleValue();
+            dupDelay =  par("DD").doubleValue();
+            return;
         }
         else if (!strcmp(currentmsg_bits.to_string().c_str(), "1011")) // Modification and Duplication +delay
         {
 
-            nodemsg->setM_Payload(bitstring.c_str());
-
-            nodemsg2->setM_Payload(nodemsg->getM_Payload());
-            nodemsg2->setTrailer(nodemsg->getTrailer());
-            DelayValue = par("PT").doubleValue() + par("TD").doubleValue() + par("ED").doubleValue();
-            dupDelay = par("PT").doubleValue() + par("TD").doubleValue() + par("ED").doubleValue() + par("DD").doubleValue();
+            DelayValue = DelayValue + par("ED").doubleValue();
+            dupDelay =  par("DD").doubleValue();
+            return;
         }
-        else if ((!strcmp(currentmsg_bits.to_string().c_str(), "1100")) || (!strcmp(currentmsg_bits.to_string().c_str(), "1101"))) // Modification and loss || modification + loss + delay
+        else if (!strcmp(currentmsg_bits.to_string().c_str(), "1100")) // Modification and loss
+        {        DelayValue = par("PT").doubleValue();
+            losssignal = 1;
+            return;
+        }
+
+        else if (!strcmp(currentmsg_bits.to_string().c_str(), "1101")) // modification + loss + delay
         {
-            EV << simTime() << endl;
-            nodemsg->setM_Payload(bitstring.c_str());
-            scheduleAt(simTime() + par("PT").doubleValue(), new cMessage("lost"));
+
+            /////lossssssssssssssssssssssssssssssssssssss
+            DelayValue = par("PT").doubleValue();
+            losssignal = 1;
+            return;
+
         }
         else if ((!strcmp(currentmsg_bits.to_string().c_str(), "1110")) || (!strcmp(currentmsg_bits.to_string().c_str(), "1111"))) // Modification and loss  +duplication || modification + loss + duplication + delay
         {
 
-            nodemsg->setM_Payload(bitstring.c_str());
-            scheduleAt(simTime() + par("PT").doubleValue(), new cMessage("lost"));
+            DelayValue = par("PT").doubleValue();
+            dupDelay =  par("DD").doubleValue();
+            losssignal = 1;
+            return;
         }
     }
 }
+
 void Node::readInputFile(vector<MessageData> &msgs, string filename)
 {
-    EV << filename << endl;
     string line;
 
     ifstream inputFile(filename);
@@ -198,7 +254,6 @@ void Node::readInputFile(vector<MessageData> &msgs, string filename)
     }
     while (getline(inputFile, line))
     {
-        EV << line << endl;
         string pre = line.substr(0, 4);
         MessageData m;
         m.prefix = bitset<4>(pre);
@@ -214,8 +269,10 @@ void Node::readInputFile(vector<MessageData> &msgs, string filename)
         }
         m.data = line.substr(i);
         msgs.push_back(m);
+        writeToOutputFile(node_id,m.prefix) ;
     }
 }
+
 void Node::initialize()
 {
     frame_expected = 0;
@@ -226,56 +283,89 @@ void Node::initialize()
 }
 void Node::handleMessage(cMessage *msg)
 {
-    if (msg->isSelfMessage())
-    {
-        if (!strcmp(msg->getName(), "Self Message To Sender")) // Send the next frame
-        {
-            NodeMessage_Base *frame = check_and_cast<NodeMessage_Base *>(msg);
-            int seq_num = frame->getHeader();
-            send_window[seq_num] = frame;
-            sendDelayed(frame, simTime(), "node$o");
+    DelayValue = 0;
+    dupDelay=0;
 
-            return;
-        }
-        else if (!strcmp(msg->getName(), "timeout")) // Timeout event
-        {
-            EV << "Timeout occurred for frame: " << frame_expected << "\n";
-            sendDelayed(send_window[frame_expected], par("TD").doubleValue() + par("PT").doubleValue(), "node$o");
-            return;
-        }
-    }
-    if (msg->getArrivalGateId() == 0) /// msg from coordinator
+     if (msg->getArrivalGateId() == 0) /// msg from coordinator
     {
+
 
         if (!strcmp(this->getName(), "node0"))
         {
             filename = "input0.txt";
+            node_id = 0;
         }
         else if (!strcmp(this->getName(), "node1"))
         {
             filename = "input1.txt";
+            node_id = 1;
         }
         readInputFile(msgs, filename);
         int counter = 0;
         while (counter < window_size && !msgs.empty())
         {
-            NodeMessage_Base *frame = new NodeMessage_Base("msg");
+            bool losssignal = 0;
+            NodeMessage_Base *frame_dup,*frame = new NodeMessage_Base("");
             MessageData currentMsg = msgs[counter];
-            int seq_num = (frame_expected + window_size - 1) % MAX_SEQ;
-            frame->setHeader(seq_num);
+            int seq_num = counter % (MAX_SEQ + 1); // Sequence number wraps around
+            frame->setHeader(seq_num);             // Add sequence number
             frame->setFrame_Type(2);
             string currentmsg_data = currentMsg.data;
             bitset<4> errorBits = currentMsg.prefix;
+
+            /////// Framing //////
             string currentmsg_framed = FrameAndFlag(currentmsg_data);
             string bitstring = "";
             bitset<8> parity = CalculateParity(currentmsg_framed, bitstring);
             frame->setTrailer(parity.to_string().c_str());
+            //////setting payload////////
+            int modifiedbit = -1;
+            CreateError(bitstring,currentMsg.prefix, modifiedbit , losssignal);
+            EV<<"bara"<<DelayValue<<endl;
             frame->setM_Payload(bitstring.c_str());
             send_window[seq_num] = frame;
             EV<<"Sending frame with seqnum"<<frame->getHeader()<< "at time"<< simTime()<<endl;
             sendDelayed(frame, par("PT").doubleValue(), "node$o");
             counter++;
-    }
+            totalDelay= totalDelay + DelayValue;
+            int dupversion =-1;
+            double delay_interval=0;
+            if(dupDelay!=0){
+                frame_dup = frame->dup();
+                dupversion = 1;
+            }
+            if(currentMsg.prefix[0]==1){
+                delay_interval =  par("ED").doubleValue();
+            }
+            if(losssignal)
+            {
+                logFrameEvent(totalDelay+static_cast<double>(simTime().inUnit(SIMTIME_S)),node_id, 1,
+                                               seq_num,  bitstring, frame->getTrailer(),
+                                               modifiedbit,losssignal, dupversion,  delay_interval);
+                if(dupversion ==1){
+                    dupversion =2;
+                    logFrameEvent(totalDelay+static_cast<double>(simTime().inUnit(SIMTIME_S)),node_id, 1,
+                                                                seq_num,  bitstring, frame->getTrailer(),
+                                                                modifiedbit,losssignal, dupversion,  delay_interval);
+                }
+            }
+            else {
+            sendDelayed(frame, totalDelay, "node$o"); // Send frame
+            logFrameEvent(totalDelay+static_cast<double>(simTime().inUnit(SIMTIME_S)),node_id, 1,
+                                seq_num,  bitstring, frame->getTrailer(),
+                                modifiedbit,losssignal, dupversion,  delay_interval);
+            if(dupDelay!=0){
+                dupversion =2;
+                        totalDelay= totalDelay + dupDelay;
+            sendDelayed(frame_dup, totalDelay, "node$o"); // Duplication
+            logFrameEvent(totalDelay+static_cast<double>(simTime().inUnit(SIMTIME_S)),node_id, 1,
+                                seq_num,  bitstring, frame_dup->getTrailer(),
+                                modifiedbit,losssignal, dupversion,  delay_interval);
+            }
+            DelayValue = 0;
+            dupDelay=0;
+            }
+        }
     }
     else
     {
@@ -284,7 +374,7 @@ void Node::handleMessage(cMessage *msg)
         {
             int seqnum = ReceivedMessage->getHeader();
             string payload = ReceivedMessage->getM_Payload(); // Extract payload
-            EV << "seq num recived" << seqnum << endl;
+            EV << payload << endl;
             string trailer = ReceivedMessage->getTrailer(); // Extract trailer
             string str = "";
             std::bitset<8> parity_check = CalculateParityRec(payload, str);
@@ -292,7 +382,6 @@ void Node::handleMessage(cMessage *msg)
 
             if (strcmp(parity_check.to_string().c_str(), trailer.c_str()))
             {
-                EV<<"Error detected"<<endl;
                 // There is an error detected so send NACK
                 ack_nack->setHeader(seqnum); // NACK for the received sequence number
                 ack_nack->setM_Payload("");  // No payload needed for NACK
@@ -305,14 +394,14 @@ void Node::handleMessage(cMessage *msg)
                 ack_nack->setHeader(seqnum);                           // ACK for the current sequence number
                 ack_nack->setM_Payload("");
                 ack_nack->setFrame_Type(1); // Type for ACK can be set to 1
-                // Assume ReceivedMessage is the incoming frame
-                int receivedSeqNum = ReceivedMessage->getHeader(); // Get the sequence number of the received frame
-
-                // Create an acknowledgment for the received sequence number
-                ack_nack->setACK(receivedSeqNum);
-
-                // Optionally, you can log or print the acknowledgment being sent
-                EV << "Acknowledging frame with sequence number: " << receivedSeqNum << endl;
+                int expected = 0;
+                if (expected == ReceivedMessage->getHeader())
+                {
+                    expected++;
+                    if (expected == MAX_SEQ)
+                        expected = 0;
+                }
+                ack_nack->setACK((expected + MAX_SEQ - 1) % (MAX_SEQ));
 
                 /// Process the payload
                 string deframed_payload = "";
@@ -346,68 +435,28 @@ void Node::handleMessage(cMessage *msg)
                 EV << "Deframed payload: " << deframed_payload << endl;
                 EV << "Text " << s;
             }
+
             sendDelayed(ack_nack, par("TD").doubleValue() + par("PT").doubleValue(), "node$o");
         }
-        else if (ReceivedMessage->getFrame_Type() == 1 ) // recieving Ack [sender]
-        {
-            int ack_num = ReceivedMessage->getACK(); // Get ACK number
-            EV << "Received ACK for frame " << ack_num << endl;
-
-            // Check if the ACK is for a frame within the current window
-            if (between(frame_expected, ack_num, (frame_expected + window_size) % MAX_SEQ))
-            {
-                EV << "ACK is within the window." << endl;
-
-                // Move the window forward
-                if (frame_expected == ack_num)
-                {
-                    // Free the frame buffer for the acknowledged frame
-                    delete send_window[frame_expected % window_size];
-                    send_window[frame_expected % window_size] = nullptr;
-
-                    // Update the expected frame
-                    frame_expected = (frame_expected + 1) % MAX_SEQ;
-                }
-
-                // Send new frames if the window allows
-                while (send_window[frame_expected % window_size] == nullptr && !msgs.empty())
-                {
-                    NodeMessage_Base *frame = new NodeMessage_Base("");
-                    MessageData currentMsg = msgs.front(); // Get the next message
-                    msgs.erase(msgs.begin());              // Remove the message from the list
-
-                    int seq_num = (frame_expected + window_size - 1) % MAX_SEQ; // Determine the sequence number
-                    frame->setHeader(seq_num);                                  // Set the sequence number
-                    frame->setFrame_Type(2);                                    // Set as data frame
-
-                    string currentmsg_data = currentMsg.data;
-                    bitset<4> errorBits = currentMsg.prefix;
-
-                    // Framing
-                    string currentmsg_framed = FrameAndFlag(currentmsg_data);
-
-                    // Parity Calculation
-                    string bitstring = "";
-                    bitset<8> parity = CalculateParity(currentmsg_framed, bitstring);
-                    frame->setTrailer(parity.to_string().c_str());
-
-                    // Setting payload
-                    frame->setM_Payload(bitstring.c_str());
-
-                    // Store the frame in the send window
-                    send_window[frame_expected % window_size] = frame;
-
-                    // Send the frame
-                    EV << "Sending frame " << frame->getM_Payload() << endl;
-                    sendDelayed(frame, par("PT").doubleValue() + par("TD").doubleValue(), "node$o");
-                }
-            }
-            else
-            {
-                EV << "ACK is outside the window, ignoring." << endl;
-            }
-        }
-
+        //         else if (ReceivedMessage->getFrame_Type() == 1) // recieving Ack [sender]
+        //         {
+        //             int ack_num = ReceivedMessage->getHeader(); // Get ACK number
+        //             EV << "Received ACK for frame " << ack_num << endl;
+        //
+        //             // Slide the window
+        //             while (ack_expected != (ack_num + 1) % (MAX_SEQ + 1))
+        //             {
+        //                 delete send_window[ack_expected % window_size]; // Free frame memory
+        //                 send_window[ack_expected % window_size] = nullptr;
+        //                 ack_expected = (ack_expected + 1) % (MAX_SEQ + 1); // Move the window
+        //             }
+        //
+        //             // Stop timer if all frames are acknowledged
+        //             if (ack_expected == next_frame_to_send)
+        //             {
+        //                 cancelEvent(timeout_event);
+        //             }
+        //         }
         //         else if (ReceivedMessage->getFrame_Type() == 0) // recieving NACK [sender]
         //         {
         //             int nack_num = ReceivedMessage->getHeader(); // Get NACK number
