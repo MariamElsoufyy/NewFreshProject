@@ -110,6 +110,8 @@ bool Node::between(int a, int b, int c)
 }
 char binaryToChar(const std::string &binary)
 {
+char binaryToChar(const std::string &binary)
+{
     // Convert binary string to decimal and then to a character
     return static_cast<char>(std::bitset<8>(binary).to_ulong());
 }
@@ -124,7 +126,6 @@ bitset<8> Node::CalculateParityRec(string Data, string &str)
     }
     return parity;
 }
-
 bitset<8> Node::CalculateParity(string Data, string &bitstring)
 {
     std::bitset<8> parity = 0000000;
@@ -280,7 +281,6 @@ void Node::initialize()
     send_window.resize(window_size, nullptr);     // Allocate buffer
     timeout_event = new cMessage("TimeoutEvent"); // Create timeout event
 }
-
 void Node::handleMessage(cMessage *msg)
 {
     DelayValue = 0;
