@@ -51,8 +51,10 @@ private:
     int nbuffered = 0;
     int window_size = 0;
     double DelayValue = 0;
-    double dupDelay = -1;
+    double dupDelay = 0;
     int lossCounter = -1;
+    double totalDelay = 0;
+
     std::vector<NodeMessage_Base*> send_window; // Buffer for unacknowledged frames
     cMessage * timeout_event; // Timeout event
 

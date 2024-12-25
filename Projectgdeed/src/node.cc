@@ -138,7 +138,7 @@ bitset<8> Node::CalculateParity(string Data, string &bitstring)
 }
 void Node::CreateError(string &bitstring, bitset<4> currentmsg_bits, int & modifiedbit, bool & losssignal )
 {
-    DelayValue = DelayValue+par("PT").doubleValue() + par("TD").doubleValue();
+    DelayValue =par("PT").doubleValue() + par("TD").doubleValue();
     EV<<"gowa"<<DelayValue<<endl;
     if (!strcmp(currentmsg_bits.to_string().c_str(), "0000")) // NO ERROR
     {
@@ -155,7 +155,7 @@ void Node::CreateError(string &bitstring, bitset<4> currentmsg_bits, int & modif
     {
 
         DelayValue = DelayValue + par("ED").doubleValue();
-        dupDelay = DelayValue + par("DD").doubleValue();
+        dupDelay =  par("DD").doubleValue();
         return;
     }
     else if (!strcmp(currentmsg_bits.to_string().c_str(), "0010")) // duplication Error
@@ -166,7 +166,7 @@ void Node::CreateError(string &bitstring, bitset<4> currentmsg_bits, int & modif
     }
     else if ((!strcmp(currentmsg_bits.to_string().c_str(), "0100")) || (!strcmp(currentmsg_bits.to_string().c_str(), "0101"))) // Loss Error & loss and delay
     {
-
+        DelayValue = par("PT").doubleValue();
         //////LOSSSSSSSSSSSSSSSSSSS
         losssignal = 1;
         return;
@@ -174,14 +174,15 @@ void Node::CreateError(string &bitstring, bitset<4> currentmsg_bits, int & modif
     else if (!strcmp(currentmsg_bits.to_string().c_str(), "0110")) // loss + dup
     {
         //////LOSSSSSSSSSSSSSSSSSSS
-        dupDelay = DelayValue + par("DD").doubleValue();
+        dupDelay =  par("DD").doubleValue();
+        DelayValue = par("PT").doubleValue();
         losssignal = 1;
         return;
     }
     else if (!strcmp(currentmsg_bits.to_string().c_str(), "0111")) // loss + dup + delay ||
         {
-        DelayValue = DelayValue + par("ED").doubleValue();
-        dupDelay = DelayValue + par("DD").doubleValue();
+        DelayValue = par("PT").doubleValue();
+        dupDelay =  par("DD").doubleValue();
 
         losssignal = 1;
         return;
@@ -199,24 +200,24 @@ void Node::CreateError(string &bitstring, bitset<4> currentmsg_bits, int & modif
         else if (!strcmp(currentmsg_bits.to_string().c_str(), "1001")) // Delay + modification  Error
         {
 
-            DelayValue = DelayValue + par("ED").doubleValue();
+            dupDelay =  par("DD").doubleValue();
             return;
         }
         else if (!strcmp(currentmsg_bits.to_string().c_str(), "1010")) // Modification and Duplication
         {
 
-            dupDelay = DelayValue + par("DD").doubleValue();
+            dupDelay =  par("DD").doubleValue();
             return;
         }
         else if (!strcmp(currentmsg_bits.to_string().c_str(), "1011")) // Modification and Duplication +delay
         {
 
             DelayValue = DelayValue + par("ED").doubleValue();
-            dupDelay = DelayValue + par("DD").doubleValue();
+            dupDelay =  par("DD").doubleValue();
             return;
         }
         else if (!strcmp(currentmsg_bits.to_string().c_str(), "1100")) // Modification and loss
-        {
+        {        DelayValue = par("PT").doubleValue();
             losssignal = 1;
             return;
         }
@@ -225,7 +226,7 @@ void Node::CreateError(string &bitstring, bitset<4> currentmsg_bits, int & modif
         {
 
             /////lossssssssssssssssssssssssssssssssssssss
-            DelayValue = DelayValue + par("ED").doubleValue();
+            DelayValue = par("PT").doubleValue();
             losssignal = 1;
             return;
 
@@ -233,8 +234,8 @@ void Node::CreateError(string &bitstring, bitset<4> currentmsg_bits, int & modif
         else if ((!strcmp(currentmsg_bits.to_string().c_str(), "1110")) || (!strcmp(currentmsg_bits.to_string().c_str(), "1111"))) // Modification and loss  +duplication || modification + loss + duplication + delay
         {
 
-            DelayValue = DelayValue + par("ED").doubleValue();
-            dupDelay = DelayValue + par("DD").doubleValue();
+            DelayValue = par("PT").doubleValue();
+            dupDelay =  par("DD").doubleValue();
             losssignal = 1;
             return;
         }
@@ -283,7 +284,7 @@ void Node::initialize()
 void Node::handleMessage(cMessage *msg)
 {
     DelayValue = 0;
-    dupDelay=-1;
+    dupDelay=0;
 
      if (msg->getArrivalGateId() == 0) /// msg from coordinator
     {
@@ -324,10 +325,10 @@ void Node::handleMessage(cMessage *msg)
             EV<<"bara"<<DelayValue<<endl;
             frame->setM_Payload(bitstring.c_str());
             counter++;
-
+            totalDelay= totalDelay + DelayValue;
             int dupversion =-1;
             double delay_interval=0;
-            if(dupDelay!=-1){
+            if(dupDelay!=0){
                 frame_dup = frame->dup();
                 dupversion = 1;
             }
@@ -336,40 +337,37 @@ void Node::handleMessage(cMessage *msg)
             }
             if(losssignal)
             {
-                DelayValue = par("PT").doubleValue();
-                logFrameEvent(DelayValue+static_cast<double>(simTime().inUnit(SIMTIME_S)),node_id, 0,
+                logFrameEvent(totalDelay+static_cast<double>(simTime().inUnit(SIMTIME_S)),node_id, 1,
                                                seq_num,  bitstring, frame->getTrailer(),
                                                modifiedbit,losssignal, dupversion,  delay_interval);
                 if(dupversion ==1){
                     dupversion =2;
-                    logFrameEvent(DelayValue+static_cast<double>(simTime().inUnit(SIMTIME_S)),node_id, 0,
+                    logFrameEvent(totalDelay+static_cast<double>(simTime().inUnit(SIMTIME_S)),node_id, 1,
                                                                 seq_num,  bitstring, frame->getTrailer(),
                                                                 modifiedbit,losssignal, dupversion,  delay_interval);
                 }
             }
             else {
-            sendDelayed(frame, DelayValue, "node$o"); // Send frame
-            logFrameEvent(DelayValue+static_cast<double>(simTime().inUnit(SIMTIME_S)),node_id, 0,
+            sendDelayed(frame, totalDelay, "node$o"); // Send frame
+            logFrameEvent(totalDelay+static_cast<double>(simTime().inUnit(SIMTIME_S)),node_id, 1,
                                 seq_num,  bitstring, frame->getTrailer(),
                                 modifiedbit,losssignal, dupversion,  delay_interval);
-            if(dupDelay!=-1){
+            if(dupDelay!=0){
                 dupversion =2;
-            sendDelayed(frame_dup, dupDelay, "node$o"); // Duplication
-            logFrameEvent(DelayValue+static_cast<double>(simTime().inUnit(SIMTIME_S)),node_id, 0,
+                        totalDelay= totalDelay + dupDelay;
+            sendDelayed(frame_dup, totalDelay, "node$o"); // Duplication
+            logFrameEvent(totalDelay+static_cast<double>(simTime().inUnit(SIMTIME_S)),node_id, 1,
                                 seq_num,  bitstring, frame_dup->getTrailer(),
                                 modifiedbit,losssignal, dupversion,  delay_interval);
             }
             DelayValue = 0;
-            dupDelay=-1;
+            dupDelay=0;
             }
         }
     }
     else
     {
         NodeMessage_Base *ReceivedMessage = check_and_cast<NodeMessage_Base *>(msg);
-        if (msg->isSelfMessage()){
-
-        }
         if (ReceivedMessage->getFrame_Type() == 2) // recieving data [reciever]
         {
             int seqnum = ReceivedMessage->getHeader();
